@@ -30,18 +30,14 @@ class GradientBoostedTreeRegressor:
 
     def _preproc_X(self, X: pl.DataFrame) -> pl.DataFrame:
         entity_col = X.columns[0]
-        X_new = X.with_columns(
+        return X.with_columns(
             pl.col([pl.Categorical, pl.Boolean]).exclude(entity_col).to_physical()
         )
-        return X_new
 
     def fit(self, X: pl.DataFrame, y: pl.DataFrame):
 
         weight_transform = self.weight_transform
-        sample_weight = None
-        if weight_transform is not None:
-            sample_weight = y.pipe(weight_transform)
-
+        sample_weight = None if weight_transform is None else y.pipe(weight_transform)
         X = self._preproc_X(X)
 
         if self.fit_dtype == "numpy":
@@ -66,8 +62,7 @@ class GradientBoostedTreeRegressor:
             X_coerced = X.to_arrow
         elif isinstance(self.predict_dtype, Callable):
             X_coerced = self.predict_dtype(X)
-        y_pred = self.regressor.predict(X_coerced)
-        return y_pred
+        return self.regressor.predict(X_coerced)
 
 
 class SklearnRegressor:
@@ -76,7 +71,7 @@ class SklearnRegressor:
 
     def _preproc_X(self, X: pl.DataFrame):
         entity_col, time_col = X.columns[:2]
-        X_new = X.select(
+        return X.select(
             [
                 entity_col,
                 time_col,
@@ -85,7 +80,6 @@ class SklearnRegressor:
                 pl.col(pl.Boolean).cast(pl.Int8),
             ]
         )
-        return X_new
 
     def fit(self, X: pl.DataFrame, y: pl.DataFrame):
         X_new = self._preproc_X(X).lazy()

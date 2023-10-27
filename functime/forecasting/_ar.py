@@ -39,11 +39,10 @@ def fit_recursive(
     fitted_regressor = regress(X=X_final, y=y_final)
     # 3. Collect artifacts
     y_lag = make_y_lag(X_y_final, target_col=y.columns[-1], lags=lags)
-    artifacts = {
+    return {
         "regressor": fitted_regressor,
         "y_lag": y_lag.collect(streaming=True),
     }
-    return artifacts
 
 
 def fit_direct(
@@ -69,11 +68,10 @@ def fit_direct(
         fitted_regressors.append(fitted_regressor)
     # 3. Collect artifacts
     y_lag = make_y_lag(X_y_final, target_col=y.columns[-1], lags=lags + max_horizons)
-    artifacts = {
+    return {
         "regressors": fitted_regressors,
         "y_lag": y_lag.collect(streaming=True),
     }
-    return artifacts
 
 
 def fit_autoreg(
@@ -189,8 +187,8 @@ def fit_cv(  # noqa: Ruff too complex
         "max_horizons": max_horizons,
         "strategy": strategy,
         **kwargs,
+        "lags": best_lags,
     }
-    best_params["lags"] = best_lags
     logging.info("✅ Found `best_params` %s", best_params)
     best_forecaster = forecaster_cls(**best_params)
     best_forecaster.fit(y=y, X=X)

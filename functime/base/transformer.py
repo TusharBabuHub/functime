@@ -62,8 +62,7 @@ class Transformer:
 
     def transform_new(self, X: DF_TYPE) -> pl.LazyFrame:
         transform = self.func[2]
-        X_new = transform(state=self.state, X=X.lazy())
-        return X_new
+        return transform(state=self.state, X=X.lazy())
 
 
 def transformer(transf: Callable[P, R]):

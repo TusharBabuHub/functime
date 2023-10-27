@@ -317,13 +317,12 @@ class elite(Forecaster):
                 forecaster = forecaster_cls(freq=freq).fit(y=y)
             fitted_forecasters[model_name] = forecaster
 
-        artifacts = {
+        return {
             "scores": scores,
             "best_models": best_models,
             "forecasters": fitted_forecasters,
             "final_regressor": final_regressor,
         }
-        return artifacts
 
     def predict(self, fh: int, X: Optional[pl.LazyFrame] = None):
         state = self.state

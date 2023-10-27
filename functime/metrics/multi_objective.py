@@ -160,7 +160,6 @@ def score_backtest(
             .set_sorted([entity_col, time_col])
             .collect()
         )
-        scores = score_forecast(y_true, y_pred, y_train=y_true)
+        return score_forecast(y_true, y_pred, y_train=y_true)
     else:
-        scores = score_forecast(y_true, y_preds, y_train=y_true)
-    return scores
+        return score_forecast(y_true, y_preds, y_train=y_true)

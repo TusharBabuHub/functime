@@ -56,20 +56,19 @@ def check_backtest_lengths(
     short_series = lengths.filter(pl.col("len") < min_length + 1)
     n_short = len(short_series)
     if n_short > 0:
-        if drop_short:
-            logging.warning(
-                "Dropping %s / %s entities with insufficient length."
-                " Expected all individual time-series to have length > %s.",
-                n_short,
-                n_entities,
-                min_length,
-            )
-            y = y.filter(~pl.col(entity_col).is_in(short_series.get_column(entity_col)))
-        else:
+        if not drop_short:
             raise ValueError(
                 f"Found {n_short} / {n_entities} entities with insufficient length."
                 f" Expected all individual time-series to have length > {min_length}."
             )
+        logging.warning(
+            "Dropping %s / %s entities with insufficient length."
+            " Expected all individual time-series to have length > %s.",
+            n_short,
+            n_entities,
+            min_length,
+        )
+        y = y.filter(~pl.col(entity_col).is_in(short_series.get_column(entity_col)))
     return y
 
 
@@ -164,8 +163,7 @@ class Forecaster(Model):
             feature_transform = [feature_transform]
         for transf in feature_transform:
             X = X.pipe(transf)
-        X_new = X.collect().lazy()
-        return X_new
+        return X.collect().lazy()
 
     def fit(self, y: DF_TYPE, X: Optional[DF_TYPE] = None):
         # Prepare y

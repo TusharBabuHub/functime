@@ -8,12 +8,11 @@ def _score(y_true, y_pred, formula: pl.Expr, alias: str):
     y_true = y_true.rename({y_true.columns[-1]: "actual"})
     y_pred = y_pred.rename({y_pred.columns[-1]: "pred"})
     entity_col, time_col = y_true.columns[:2]
-    scores = (
+    return (
         y_true.join(y_pred, on=[entity_col, time_col], how="left")
         .group_by(entity_col)
         .agg(formula.alias(alias))
     )
-    return scores
 
 
 @metric
@@ -189,13 +188,12 @@ def mase(
         .agg((pl.col("naive") - pl.col("naive").shift(sp)).abs().mean())
     )
     entity_col = y_true.columns[0]
-    scores = (
+    return (
         mae_scores.lazy()
         .join(naive_mae_scores.lazy(), on=entity_col, how="left")
         .select([entity_col, (pl.col("mae") / pl.col("naive")).alias("mase")])
         .collect(streaming=True)
     )
-    return scores
 
 
 @metric
@@ -225,13 +223,17 @@ def rmsse(
         .agg(((pl.col("naive") - pl.col("naive").shift(sp)) ** 2).mean())
     )
     entity_col = y_true.columns[0]
-    scores = (
+    return (
         mse_scores.lazy()
         .join(naive_mse_scores.lazy(), on=entity_col, how="left")
-        .select([entity_col, (pl.col("mse") / pl.col("naive")).sqrt().alias("rmsse")])
+        .select(
+            [
+                entity_col,
+                (pl.col("mse") / pl.col("naive")).sqrt().alias("rmsse"),
+            ]
+        )
         .collect(streaming=True)
     )
-    return scores
 
 
 @metric

@@ -30,8 +30,7 @@ class naive(Forecaster):
             .group_by(entity_col)
             .agg(pl.col(target_col).last())
         )
-        artifacts = {"y_pred": y_pred}
-        return artifacts
+        return {"y_pred": y_pred}
 
     def predict(
         self, fh: int, X: Optional[Union[pl.DataFrame, pl.LazyFrame]] = None

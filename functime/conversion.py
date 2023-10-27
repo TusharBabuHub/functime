@@ -13,10 +13,7 @@ def df_to_ndarray(df: pl.DataFrame, n_groups: Optional[int] = None) -> np.ndarra
     columns = df.columns
     df = df.select(pl.all().cast(pl.Float32))  # Defensive type cast
 
-    chunks = (df.shape[0], 1)  # Chunk columnar
-    if n_groups:
-        chunks = (n_groups, df.shape[1])  # Chunk by group
-
+    chunks = (n_groups, df.shape[1]) if n_groups else (df.shape[0], 1)
     with tempfile.TemporaryDirectory() as tempdir:
         timestamp = datetime.utcnow().strftime("%Y%m%dT%H%M%S")
         file_path = f"{tempdir}/{timestamp}.zarr"
@@ -37,7 +34,7 @@ def df_to_ndarray(df: pl.DataFrame, n_groups: Optional[int] = None) -> np.ndarra
 
 
 def X_to_numpy(X: pl.DataFrame) -> np.ndarray:
-    X_arr = (
+    return (
         X.lazy()
         .select(pl.col(X.columns[2:]).cast(pl.Float32))
         .select(
@@ -51,11 +48,10 @@ def X_to_numpy(X: pl.DataFrame) -> np.ndarray:
         .collect(streaming=True)
         .pipe(df_to_ndarray)
     )
-    return X_arr
 
 
 def y_to_numpy(y: pl.DataFrame) -> np.ndarray:
-    y_arr = (
+    return (
         y.lazy()
         .select(pl.col(y.columns[-1]).cast(pl.Float32))
         .select(
@@ -70,4 +66,3 @@ def y_to_numpy(y: pl.DataFrame) -> np.ndarray:
         .get_column(y.columns[-1])
         .to_numpy(zero_copy_only=True)
     )
-    return y_arr

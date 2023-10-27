@@ -34,8 +34,7 @@ def enbpi(
         )
         y_pred_qnts.append(y_pred_qnt)
 
-    y_pred_qnts = pl.concat(y_pred_qnts).sort([entity_col, time_col]).collect()
-    return y_pred_qnts
+    return pl.concat(y_pred_qnts).sort([entity_col, time_col]).collect()
 
 
 def conformalize(

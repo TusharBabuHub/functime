@@ -94,12 +94,11 @@ def evaluate_windows(
         results.append(result)
     scores = [res["score"] for res in results]
     score = None
-    if len(scores) > 0:
+    if scores:
         score = sum(scores) / len(scores)
     else:
         raise ValueError("Failed to evaluate every window")
-    res = {"mae": score}
-    return res
+    return {"mae": score}
 
 
 def evaluate(
@@ -159,7 +158,4 @@ def evaluate(
         score = tuner.best_result["mae"]
         params = tuner.best_config
 
-    if include_best_params:
-        return score, params
-    else:
-        return score
+    return (score, params) if include_best_params else score

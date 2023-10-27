@@ -480,7 +480,7 @@ def impute(
 
     def transform(X: pl.LazyFrame) -> pl.LazyFrame:
         entity_col, time_col = X.columns[:2]
-        if isinstance(method, int) or isinstance(method, float):
+        if isinstance(method, (int, float)):
             expr = PL_NUMERIC_COLS(entity_col, time_col).fill_null(pl.lit(method))
         else:
             expr = method_to_expr(entity_col, time_col)[method]
@@ -871,11 +871,7 @@ def deseasonalize_fourier(sp: int, K: int, robust: bool = False):
     Note: part of this transformer uses sklearn under-the-hood: it is not pure Polars and lazy.
     """
 
-    if robust:
-        regressor_cls = LinearRegression
-    else:
-        regressor_cls = TheilSenRegressor
-
+    regressor_cls = LinearRegression if robust else TheilSenRegressor
     def transform(X: pl.LazyFrame) -> pl.LazyFrame:
         X = X.collect()  # Not lazy
         if X.shape[1] > 3:

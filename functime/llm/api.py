@@ -24,14 +24,13 @@ class LLMActions:
 
     def _panel_to_wide(self, panel_df: pl.DataFrame) -> pl.DataFrame:
         entity_col, time_col, target_col = panel_df.columns[:3]
-        wide_df = panel_df.pivot(
+        return panel_df.pivot(
             index=time_col,
             values=target_col,
             columns=entity_col,
             aggregate_function=None,
             sort_columns=True,
         ).sort(time_col)
-        return wide_df
 
     def analyze(
         self,
@@ -59,8 +58,7 @@ class LLMActions:
             f"{format_dataframes(wide_forecasts)}"
             f"{formatting}"
         )
-        response = openai_call(prompt, model, **kwargs)
-        return response
+        return openai_call(prompt, model, **kwargs)
 
     def compare(
         self,
@@ -96,5 +94,4 @@ class LLMActions:
             f"{format_dataframes(wide_forecasts)}"
             f"{output_format}"
         )
-        response = openai_call(prompt, model, **kwargs)
-        return response
+        return openai_call(prompt, model, **kwargs)

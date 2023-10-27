@@ -142,8 +142,7 @@ def pd_roll(X: pd.DataFrame, window_sizes: List[int], stats: str):
             .reorder_levels([1, 0], axis=0)
         )
         X_window_sizes.append(X_window)
-    X_new = pd.concat(X_window_sizes, axis=1).sort_index()  # Defensive sort
-    return X_new
+    return pd.concat(X_window_sizes, axis=1).sort_index()
 
 
 @pytest.fixture

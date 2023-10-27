@@ -18,11 +18,11 @@ METRIC_TYPE = Callable[
 def metric(score: Callable):
     @wraps(score)
     def _score(
-        y_true: Union[pl.LazyFrame, pl.DataFrame],
-        y_pred: Union[pl.LazyFrame, pl.DataFrame],
-        *args,
-        **kwargs,
-    ) -> pl.DataFrame:
+            y_true: Union[pl.LazyFrame, pl.DataFrame],
+            y_pred: Union[pl.LazyFrame, pl.DataFrame],
+            *args,
+            **kwargs,
+        ) -> pl.DataFrame:
 
         if isinstance(y_true, pl.LazyFrame):
             y_true = y_true.collect(streaming=True)
@@ -36,7 +36,7 @@ def metric(score: Callable):
         y_pred = y_pred.pipe(_enforce_string_cache, string_cache=string_cache)
         # Coerce columnn names and dtypes
         cols = y_true.columns
-        y_pred = y_pred.rename({x: y for x, y in zip(y_pred.columns, cols)}).select(
+        y_pred = y_pred.rename(dict(zip(y_pred.columns, cols))).select(
             [pl.col(col).cast(dtype) for col, dtype in y_true.schema.items()]
         )
 
