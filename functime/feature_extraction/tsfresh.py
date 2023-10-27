@@ -108,11 +108,7 @@ def approximate_entropy(
     if filtering_level <= 0:
         raise ValueError("Filter level must be positive.")
 
-    if scale_by_std:
-        r = filtering_level * x.std()
-    else:
-        r = filtering_level
-
+    r = filtering_level * x.std() if scale_by_std else filtering_level
     if isinstance(x, pl.Series):
         if len(x) < run_length + 1:
             return 0
@@ -354,12 +350,7 @@ def binned_entropy(x: TIME_SERIES_T, bin_count: int = 10) -> FLOAT_EXPR:
     -------
     float | Expr
     """
-    if isinstance(x, pl.Series):
-        hist, _ = np.histogram(x, bins=bin_count)
-        probs = hist / len(x)
-        probs[probs == 0] = 1.0
-        return -np.sum(probs * np.log(probs))
-    else:
+    if not isinstance(x, pl.Series):
         return (
             (x - x.min())
             .floordiv(pl.lit(1e-12) + (x.max() - x.min()) / pl.lit(bin_count))
@@ -368,6 +359,10 @@ def binned_entropy(x: TIME_SERIES_T, bin_count: int = 10) -> FLOAT_EXPR:
             .struct.field("counts")
             .entropy()
         )
+    hist, _ = np.histogram(x, bins=bin_count)
+    probs = hist / len(x)
+    probs[probs == 0] = 1.0
+    return -np.sum(probs * np.log(probs))
 
 
 def c3(x: TIME_SERIES_T, n_lags: int) -> FLOAT_EXPR:
@@ -386,15 +381,14 @@ def c3(x: TIME_SERIES_T, n_lags: int) -> FLOAT_EXPR:
     float | Expr
     """
     twice_lag = 2 * n_lags
-    if isinstance(x, pl.Series):
-        if twice_lag >= x.len():
-            return np.nan
-        else:
-            return (x * x.shift(n_lags) * x.shift(twice_lag)).sum() / (
-                x.len() - twice_lag
-            )
-    else:
+    if not isinstance(x, pl.Series):
         return ((x.mul(x.shift(n_lags)).mul(x.shift(twice_lag))).sum()).truediv(
+            x.len() - twice_lag
+        )
+    if twice_lag >= x.len():
+        return np.nan
+    else:
+        return (x * x.shift(n_lags) * x.shift(twice_lag)).sum() / (
             x.len() - twice_lag
         )
 
@@ -465,11 +459,7 @@ def cid_ce(x: TIME_SERIES_T, normalize: bool = False) -> FLOAT_EXPR:
     -------
     float | Expr
     """
-    if normalize:
-        y = (x - x.mean()) / x.std(ddof=0)
-    else:
-        y = x
-
+    y = (x - x.mean()) / x.std(ddof=0) if normalize else x
     if isinstance(x, pl.Series):
         diff = np.diff(y)
         return np.sqrt(np.dot(diff, diff))
@@ -596,10 +586,7 @@ def energy_ratios(x: TIME_SERIES_T, n_chunks: int = 10) -> LIST_EXPR:
     # We calculate all 1,2,3,...,n_chunk at once
     if isinstance(x, pl.Series):
         r = x.len() % n_chunks
-        if r == 0:
-            y = x.pow(2)
-        else:
-            y = x.pow(2).extend_constant(0, n_chunks - r)
+        y = x.pow(2) if r == 0 else x.pow(2).extend_constant(0, n_chunks - r)
         seg_sum = y.reshape((n_chunks, -1)).list.sum()
         return (seg_sum / seg_sum.sum()).to_list()
     else:
@@ -667,10 +654,9 @@ def fourier_entropy(x: TIME_SERIES_T, n_bins: int = 10) -> float:
 
     if len(x) == 1:
         return np.nan
-    else:
-        _, pxx = welch(x, nperseg=min(x.len(), 256))
-        pxx_as_series = pl.Series(pxx)
-        return binned_entropy(pxx_as_series / pxx_as_series.max(), n_bins)
+    _, pxx = welch(x, nperseg=min(x.len(), 256))
+    pxx_as_series = pl.Series(pxx)
+    return binned_entropy(pxx_as_series / pxx_as_series.max(), n_bins)
 
 
 def friedrich_coefficients(
@@ -790,13 +776,13 @@ def index_mass_quantile(x: TIME_SERIES_T, q: float) -> FLOAT_EXPR:
             idx = x_cumsum.search_sorted(int(q*x_cumsum[-1]) + 1, "left")
         else: # Search sorted is sensitive to dtype.
             idx = x_cumsum.search_sorted(q*x_cumsum[-1], "left")
-        return (idx + 1) / x.len()
     else:
         # In lazy case we have to cast, which kind of wasts some time, but this is on
         # par with the old implementation. Use max here because... believe it or not
         # max (with fast track because I did set_sorted()) is faster than .last() ???
         idx = x_cumsum.cast(pl.Float64).search_sorted(q*x_cumsum.max(), "left")
-        return (idx + 1) / x.len()
+
+    return (idx + 1) / x.len()
 
 
 def large_standard_deviation(x: TIME_SERIES_T, ratio: float = 0.25) -> BOOL_EXPR:
@@ -895,9 +881,7 @@ def lempel_ziv_complexity(
     if isinstance(x, pl.Series):
         b = bytes(x > threshold)
         c = rs_lempel_ziv_complexity(b)
-        if as_ratio:
-            return c / x.len()
-        return c
+        return c / x.len() if as_ratio else c
     else:
         logger.info("Expression version of lempel_ziv_complexity is not yet implemented due to "
                     "technical difficulty regarding Polars Expression Plugins.")
@@ -960,11 +944,10 @@ def longest_streak_above_mean(x: TIME_SERIES_T) -> INT_EXPR:
     int | Expr
     """
     y = (x > x.mean()).rle()
-    if isinstance(x, pl.Series):
-        result = y.filter(y.struct.field("values")).struct.field("lengths").max()
-        return 0 if result is None else result
-    else:
+    if not isinstance(x, pl.Series):
         return y.filter(y.struct.field("values")).struct.field("lengths").max().fill_null(0)
+    result = y.filter(y.struct.field("values")).struct.field("lengths").max()
+    return 0 if result is None else result
 
 
 def longest_streak_below_mean(x: TIME_SERIES_T) -> INT_EXPR:
@@ -984,11 +967,10 @@ def longest_streak_below_mean(x: TIME_SERIES_T) -> INT_EXPR:
     int | Expr
     """
     y = (x < x.mean()).rle()
-    if isinstance(x, pl.Series):
-        result = y.filter(y.struct.field("values")).struct.field("lengths").max()
-        return 0 if result is None else result
-    else:
+    if not isinstance(x, pl.Series):
         return y.filter(y.struct.field("values")).struct.field("lengths").max().fill_null(0)
+    result = y.filter(y.struct.field("values")).struct.field("lengths").max()
+    return 0 if result is None else result
 
 def mean_abs_change(x: TIME_SERIES_T) -> FLOAT_EXPR:
     """
@@ -1035,14 +1017,17 @@ def mean_change(x: TIME_SERIES_T) -> FLOAT_EXPR:
     -------
     float | Expr
     """
-    if isinstance(x, pl.Series):
-        if len(x) < 1:
-            return None
-        elif len(x) == 1:
-            return 0
-        return (x[-1] - x[0]) / (x.len() - 1)
-    else:
-        return pl.when(x.len() - 1 > 0).then((x.last() - x.first()) / (x.len() - 1)).otherwise(0)
+    if not isinstance(x, pl.Series):
+        return (
+            pl.when(x.len() > 1)
+            .then((x.last() - x.first()) / (x.len() - 1))
+            .otherwise(0)
+        )
+    if len(x) < 1:
+        return None
+    elif len(x) == 1:
+        return 0
+    return (x[-1] - x[0]) / (x.len() - 1)
 
 
 def mean_n_absolute_max(x: TIME_SERIES_T, n_maxima: int) -> FLOAT_EXPR:
@@ -1078,16 +1063,15 @@ def mean_second_derivative_central(x: TIME_SERIES_T) -> FLOAT_EXPR:
     -------
     pl.Series
     """
-    if isinstance(x, pl.Series):
-        if len(x) < 3:
-            return np.nan
-        return (x[-1] - x[-2] - x[1] + x[0]) / (2 * (x.len() - 2))
-    else:
+    if not isinstance(x, pl.Series):
         return pl.when(x.len() < 3).then(
             np.nan
         ).otherwise(
             x.tail(2).sub(x.head(2)).diff().last() / (2 * (x.len() - 2))
         )
+    if len(x) < 3:
+        return np.nan
+    return (x[-1] - x[-2] - x[1] + x[0]) / (2 * (x.len() - 2))
 
 
 def number_crossings(x: TIME_SERIES_T, crossing_value: float = 0.0) -> FLOAT_EXPR:
@@ -1266,7 +1250,7 @@ def permutation_entropy(
         expr = permutation_entropy(pl.col(x.name), tau=tau, n_dims=n_dims, base=base)
         return frame.select(expr).item(0, 0)
     else:
-        if tau == 1: # Fast track the most common use case
+        if tau == 1:
             return (
                 pl.concat_list(
                     x,
@@ -1278,22 +1262,21 @@ def permutation_entropy(
                 .struct.field("counts") # extract the field named "counts"
                 .entropy(base=base, normalize=True)
             )
-        else:
-            max_shift = -n_dims + 1
-            return (
-                pl.concat_list(
-                    x.take_every(tau),
-                    *(x.shift(-i).take_every(tau) for i in range(1, n_dims))
-                ).filter( # This is the correct way to filter (with respect to tau) in this case.
-                    pl.repeat(True, x.len()).shift(max_shift, fill_value=False)
-                    .take_every(tau)
-                ).list.eval(
-                    pl.element().arg_sort()
-                )  # for each inner list, do an argsort
-                .value_counts()  # groupby and count, but returns a struct
-                .struct.field("counts")  # extract the field named "counts"
-                .entropy(base=base, normalize=True)
-            )
+        max_shift = -n_dims + 1
+        return (
+            pl.concat_list(
+                x.take_every(tau),
+                *(x.shift(-i).take_every(tau) for i in range(1, n_dims))
+            ).filter( # This is the correct way to filter (with respect to tau) in this case.
+                pl.repeat(True, x.len()).shift(max_shift, fill_value=False)
+                .take_every(tau)
+            ).list.eval(
+                pl.element().arg_sort()
+            )  # for each inner list, do an argsort
+            .value_counts()  # groupby and count, but returns a struct
+            .struct.field("counts")  # extract the field named "counts"
+            .entropy(base=base, normalize=True)
+        )
 
 
 def range_count(
@@ -1468,10 +1451,7 @@ def spkt_welch_density(x: TIME_SERIES_T, n_coeffs: Optional[int] = None) -> LIST
     list of floats
     """
     if isinstance(x, pl.Series):
-        if n_coeffs is None:
-            last_idx = len(x)
-        else:
-            last_idx = n_coeffs
+        last_idx = len(x) if n_coeffs is None else n_coeffs
         _, pxx = welch(x, nperseg=min(len(x), 256))
         return pxx[:last_idx]
     else:
@@ -1597,9 +1577,7 @@ def variation_coefficient(x: TIME_SERIES_T) -> FLOAT_EXPR:
     """
     x_mean = x.mean()
     x_std = x.std(ddof=0)
-    if isinstance(x, pl.Series):
-        return np.divide(x_std, x_mean)
-    return x_std / x_mean
+    return np.divide(x_std, x_mean) if isinstance(x, pl.Series) else x_std / x_mean
 
 
 def var_gt_std(x: TIME_SERIES_T, ddof: int = 1) -> BOOL_EXPR:
@@ -1668,10 +1646,7 @@ def range_change(x: TIME_SERIES_T, percentage: bool = True) -> FLOAT_EXPR:
     -------
     float | Expr
     """
-    if percentage:
-        return x.max() / x.min() - 1.0
-    else:
-        return x.max() - x.min()
+    return x.max() / x.min() - 1.0 if percentage else x.max() - x.min()
 
 
 def streak_length_stats(x: TIME_SERIES_T, above: bool, threshold: float) -> MAP_EXPR:
@@ -1697,11 +1672,7 @@ def streak_length_stats(x: TIME_SERIES_T, above: bool, threshold: float) -> MAP_
     -------
     float | Expr
     """
-    if above:
-        y = (x.diff() >= threshold).rle()
-    else:
-        y = (x.diff() <= threshold).rle()
-
+    y = (x.diff() >= threshold).rle() if above else (x.diff() <= threshold).rle()
     y = y.filter(y.struct.field("values")).struct.field("lengths")
     if isinstance(x, pl.Series):
         return {
@@ -1746,11 +1717,10 @@ def longest_streak_above(x: TIME_SERIES_T, threshold: float) -> TIME_SERIES_T:
     """
 
     y = (x.diff() >= threshold).rle()
-    if isinstance(x, pl.Series):
-        streak_max = y.filter(y.struct.field("values")).struct.field("lengths").max()
-        return 0 if streak_max is None else streak_max
-    else:
+    if not isinstance(x, pl.Series):
         return y.filter(y.struct.field("values")).struct.field("lengths").max().fill_null(0)
+    streak_max = y.filter(y.struct.field("values")).struct.field("lengths").max()
+    return 0 if streak_max is None else streak_max
 
 
 def longest_streak_below(x: TIME_SERIES_T, threshold: float) -> TIME_SERIES_T:
@@ -1771,11 +1741,10 @@ def longest_streak_below(x: TIME_SERIES_T, threshold: float) -> TIME_SERIES_T:
     float | Expr
     """
     y = (x.diff() <= threshold).rle()
-    if isinstance(x, pl.Series):
-        streak_max = y.filter(y.struct.field("values")).struct.field("lengths").max()
-        return 0 if streak_max is None else streak_max
-    else:
+    if not isinstance(x, pl.Series):
         return y.filter(y.struct.field("values")).struct.field("lengths").max().fill_null(0)
+    streak_max = y.filter(y.struct.field("values")).struct.field("lengths").max()
+    return 0 if streak_max is None else streak_max
 
 
 def longest_winning_streak(x: TIME_SERIES_T) -> TIME_SERIES_T:

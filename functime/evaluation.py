@@ -80,7 +80,7 @@ def acf_confint_formula(acf: pl.Expr, length: pl.Expr, ppf: float) -> pl.Expr:
 def acf(X: pl.DataFrame, max_lags: int, alpha: float = 0.05) -> pl.DataFrame:
     entity_col, _, target_col = X.columns
     ppf = norm.ppf(1 - alpha / 2.0)
-    result = (
+    return (
         X.lazy()
         # Defensive downcast and demean
         .with_columns(
@@ -132,7 +132,6 @@ def acf(X: pl.DataFrame, max_lags: int, alpha: float = 0.05) -> pl.DataFrame:
         )
         .collect(streaming=True)
     )
-    return result
 
 
 def ljung_box_test(X: pl.DataFrame, max_lags: int):
@@ -169,17 +168,20 @@ def ljung_box_test(X: pl.DataFrame, max_lags: int):
 
 def normality_test(X: pl.DataFrame) -> pl.DataFrame:
     entity_col, _, target_col = X.columns[:3]
-    results = X.group_by(entity_col).agg(
+    return X.group_by(entity_col).agg(
         pl.col(target_col)
         .map_elements(lambda s: normaltest(s.to_numpy())[0])
         .alias("normal_test")
     )
-    return results
 
 
 def _rank_entities_by_stat(y_true: pl.DataFrame, sort_by: str, descending: bool):
     entity_col, _, target_col = y_true.columns[:3]
-    if sort_by == "mean":
+    if sort_by == "cv":
+        stats = y_true.group_by(entity_col).agg(
+            (pl.col(target_col).std() / pl.col(target_col).mean()).alias(sort_by)
+        )
+    elif sort_by == "mean":
         stats = y_true.group_by(entity_col).agg(
             pl.col(target_col).mean().alias(sort_by)
         )
@@ -189,40 +191,39 @@ def _rank_entities_by_stat(y_true: pl.DataFrame, sort_by: str, descending: bool)
         )
     elif sort_by == "std":
         stats = y_true.group_by(entity_col).agg(pl.col(target_col).std().alias(sort_by))
-    elif sort_by == "cv":
-        stats = y_true.group_by(entity_col).agg(
-            (pl.col(target_col).std() / pl.col(target_col).mean()).alias(sort_by)
-        )
     else:
         raise ValueError(f"`sort_by` method '{sort_by}' not found")
-    ranks = stats.sort(by=sort_by, descending=descending).select([entity_col, sort_by])
-    return ranks
+    return stats.sort(by=sort_by, descending=descending).select(
+        [entity_col, sort_by]
+    )
 
 
 def _rank_entities_by_score(
     y_true: pl.DataFrame, y_pred: pl.DataFrame, sort_by: str, descending: bool
 ):
     scoring = SORT_BY_TO_METRIC(y_true)[sort_by]
-    ranks = (
+    return (
         scoring(y_true=y_true, y_pred=y_pred)
         .sort(by=sort_by, descending=descending)
         .select([y_true.columns[0], sort_by])
     )
-    return ranks
 
 
 def _rank_entities(
     y_pred: pl.DataFrame, y_true: pl.DataFrame, sort_by: str, descending: bool
 ):
-    if sort_by in ["mean", "median", "std", "cv"]:
-        ranks = _rank_entities_by_stat(
+    return (
+        _rank_entities_by_stat(
             y_true=y_true, sort_by=sort_by, descending=descending
         )
-    else:
-        ranks = _rank_entities_by_score(
-            y_true=y_true, y_pred=y_pred, sort_by=sort_by, descending=descending
+        if sort_by in {"mean", "median", "std", "cv"}
+        else _rank_entities_by_score(
+            y_true=y_true,
+            y_pred=y_pred,
+            sort_by=sort_by,
+            descending=descending,
         )
-    return ranks
+    )
 
 
 def rank_point_forecasts(
@@ -263,10 +264,12 @@ def rank_point_forecasts(
     ranks : pl.DataFrame
         Cross-sectional DataFrame with two columns: entity name and score.
     """
-    ranks = _rank_entities(
-        y_true=y_true, y_pred=y_pred, sort_by=sort_by.lower(), descending=descending
+    return _rank_entities(
+        y_true=y_true,
+        y_pred=y_pred,
+        sort_by=sort_by.lower(),
+        descending=descending,
     )
-    return ranks
 
 
 def rank_residuals(
@@ -295,14 +298,14 @@ def rank_residuals(
     entity_col, _, target_col = y_resids.columns[:3]
     y_resids = y_resids.lazy()
     if sort_by == "autocorr":
-        ranks = (
+        return (
             ljung_box_test(y_resids.collect(), max_lags=1)
             .with_columns(pl.col("qstats").list.first())
             .sort("qstats", descending=descending)
             .rename({"qstats": "qstat"})
         )
     elif sort_by == "normality":
-        ranks = normality_test(y_resids.collect()).sort(
+        return normality_test(y_resids.collect()).sort(
             "normal_test", descending=descending
         )
     else:
@@ -310,13 +313,12 @@ def rank_residuals(
             "bias": pl.col(target_col).mean().abs(),
             "abs_bias": pl.col(target_col).mean().abs(),
         }
-        ranks = (
+        return (
             y_resids.group_by(entity_col)
             .agg(sort_by_to_expr[sort_by].alias(sort_by))
             .sort(sort_by, descending=descending)
             .collect()
         )
-    return ranks
 
 
 def rank_fva(
@@ -352,7 +354,7 @@ def rank_fva(
         y_pred_bench = {}
     scores_bench = scoring(y_true=y_true, y_pred=y_pred_bench)
     entity_col, metric_name = scores_bench.columns
-    uplift = (
+    return (
         scores.join(
             scores_bench.rename({metric_name: f"{metric_name}_bench"}),
             how="left",
@@ -360,9 +362,9 @@ def rank_fva(
         )
         .with_columns(
             uplift=pl.col(f"{metric_name}_bench") - pl.col(metric_name),
-            has_uplift=pl.col(f"{metric_name}_bench") - pl.col(metric_name) > 0,
+            has_uplift=pl.col(f"{metric_name}_bench") - pl.col(metric_name)
+            > 0,
         )
         .select([entity_col, "uplift", "has_uplift"])
         .sort("uplift", descending=descending)
     )
-    return uplift

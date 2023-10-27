@@ -11,9 +11,8 @@ def _strip_freq_alias(freq: str) -> Tuple[int, str]:
     freq = freq.lower()
     for x in OFFSET_ALIASES:
         if freq.endswith(x):
-            offset_n = int(freq.rstrip(x))
             offset_alias = x
-            return offset_n, offset_alias
+            return int(freq.rstrip(offset_alias)), offset_alias
 
 
 def freq_to_sp(freq: str) -> Union[List[int], List[float]]:

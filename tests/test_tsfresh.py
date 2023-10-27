@@ -796,9 +796,7 @@ def test_benford_correlation():
     )
     # Fibo, distribution same as benford law
     l_fibo = [0, 1]
-    for i in range(2, 50):
-        l_fibo.append(l_fibo[i - 1] + l_fibo[i - 2])
-
+    l_fibo.extend(l_fibo[i - 1] + l_fibo[i - 2] for i in range(2, 50))
     X_fibo = pl.DataFrame({"a": l_fibo})
 
     X_fibo_lazy = pl.LazyFrame({"a": l_fibo})
@@ -1199,29 +1197,7 @@ def generate_ar1():
     ],
 )
 def test_augmented_dickey_fuller(x, param, res):
-    # assert_frame_equal(augmented_dickey_fuller(x, param), res, atol=1e-7)
-    # res_linalg_error = (
-    #     augmented_dickey_fuller(x=pl.Series(np.repeat(np.nan, 100)), param=param)
-    #     .get_column("res")
-    #     .to_numpy()
-    # )
-    # assert all(np.isnan(res_linalg_error))
-    #
-    # res_value_error = (
-    #     augmented_dickey_fuller(x=pl.Series([]), param=param)
-    #     .get_column("res")
-    #     .to_numpy()
-    # )
-    # assert all(np.isnan(res_value_error))
-    #
-    # # Should return NaN if "attr" is unknown
-    # res_attr_error = (
-    #     augmented_dickey_fuller(x=x, param=[{"autolag": "AIC", "attr": ""}])
-    #     .get_column("res")
-    #     .to_numpy()
-    # )
-    # assert all(np.isnan(res_attr_error))
-    assert True
+    pass
 
 
 @pytest.mark.parametrize(

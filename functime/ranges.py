@@ -18,7 +18,7 @@ def make_future_ranges(
     """
     entity_col = cutoffs.columns[0]
     if freq.endswith("i"):
-        future_ranges = cutoffs.select(
+        return cutoffs.select(
             [
                 pl.col(entity_col),
                 pl.int_ranges(
@@ -29,23 +29,21 @@ def make_future_ranges(
                 ).alias(time_col),
             ]
         )
-    else:
-        time_unit = time_unit or "us"
-        offset_n, offset_alias = _strip_freq_alias(freq)
+    time_unit = time_unit or "us"
+    offset_n, offset_alias = _strip_freq_alias(freq)
         # Make date ranges
-        future_ranges = cutoffs.select(
-            [
-                pl.col(entity_col),
-                pl.date_ranges(
-                    pl.col("low"),
-                    pl.col("low")
-                    .dt.offset_by(f"{fh * offset_n}{offset_alias}")
-                    .alias("high"),
-                    interval=freq,
-                    closed="right",
-                    time_unit=time_unit,
-                    eager=False,
-                ).alias(time_col),
-            ]
-        )
-    return future_ranges
+    return cutoffs.select(
+        [
+            pl.col(entity_col),
+            pl.date_ranges(
+                pl.col("low"),
+                pl.col("low")
+                .dt.offset_by(f"{fh * offset_n}{offset_alias}")
+                .alias("high"),
+                interval=freq,
+                closed="right",
+                time_unit=time_unit,
+                eager=False,
+            ).alias(time_col),
+        ]
+    )

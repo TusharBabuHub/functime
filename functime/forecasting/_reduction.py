@@ -12,8 +12,7 @@ def _join_X_y(y: pl.LazyFrame, X: pl.LazyFrame) -> pl.LazyFrame:
             "`X` must have at least one leading column identical to `y`'s"
             f" leading columns ({y.columns[0]}, {y.columns[1]})."
         )
-    X_y = y.join(X, on=on, how="inner")
-    return X_y
+    return y.join(X, on=on, how="inner")
 
 
 def make_reduction(
@@ -31,10 +30,7 @@ def make_reduction(
     # Exogenous features
     if X is not None:
         X_y = _join_X_y(X_y, X)
-    # NOTE: Cannot use streaming...
-    # Raises error: pyo3_runtime.PanicException: internal error: entered unreachable code
-    X_y_final = X_y.collect()
-    return X_y_final
+    return X_y.collect()
 
 
 def make_direct_reduction(
@@ -52,16 +48,13 @@ def make_direct_reduction(
     # Drop nulls in lagged columns
     if X is not None:
         X_y = _join_X_y(X_y, X)
-    # NOTE: Cannot use streaming...
-    # Raises error: pyo3_runtime.PanicException: internal error: entered unreachable code
-    X_y_final = X_y.collect()
-    return X_y_final
+    return X_y.collect()
 
 
 def make_y_lag(X_y: pl.DataFrame, target_col: str, lags: int):
     # NOTE: We should probably do a defensive sort on time before concat_list
     entity_col, time_col = X_y.columns[:2]
-    y_lag = (
+    return (
         X_y.lazy()
         .select([entity_col, time_col, pl.col(rf"^{target_col}__lag_(\d+)$")])
         .group_by(entity_col)
@@ -69,4 +62,3 @@ def make_y_lag(X_y: pl.DataFrame, target_col: str, lags: int):
         .collect(streaming=True)
         .lazy()
     )
-    return y_lag

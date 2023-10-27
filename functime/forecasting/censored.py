@@ -87,9 +87,7 @@ class censored_model(Forecaster):
             max_horizons=self.max_horizons,
             strategy=self.strategy,
         )
-        # 3. Collect artifacts
-        artifacts = {"classifier": fitted_classifier, **forecast_artifacts}
-        return artifacts
+        return {"classifier": fitted_classifier, **forecast_artifacts}
 
 
 class zero_inflated_model(censored_model):

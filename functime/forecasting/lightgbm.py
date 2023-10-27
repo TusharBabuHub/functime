@@ -14,11 +14,12 @@ from functime.forecasting._regressors import (
 
 
 def _prepare_kwargs(kwargs):
-    new_kwargs = {}
     tree_learner = kwargs.get("tree_learner") or "serial"
-    new_kwargs["tree_learner"] = tree_learner
-    new_kwargs["verbose"] = -1
-    new_kwargs["force_col_wise"] = True
+    new_kwargs = {
+        "tree_learner": tree_learner,
+        "verbose": -1,
+        "force_col_wise": True,
+    }
     alpha = new_kwargs.get("alpha")
     if alpha is not None:
         new_kwargs["objective"] = "quantile"

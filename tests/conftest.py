@@ -236,8 +236,6 @@ def m5_dataset():
     fh = 28
     max_lags = 64
     freq = "1d"
-    n_samples = 30
-
     # Load data
     y_train = pl.read_parquet("data/m5_y_train.parquet")
     X_train = pl.read_parquet("data/m5_X_train.parquet")
@@ -265,6 +263,8 @@ def m5_dataset():
 
     # Sample if FUNCTIME__TEST_MODE=true env var is set
     if os.environ.get("FUNCTIME__TEST_MODE", "").lower() == "true":
+        n_samples = 30
+
         # Get top N top sellers
         top_sellers = (
             y_train.groupby(entity_col)
